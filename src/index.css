@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+  --color-terminal-bg: #0a0a0f;
+  --color-terminal-border: #2a2a3a;
+  --color-terminal-text: #c0c0d0;
+  --color-terminal-dim: #6a6a7a;
+  --color-terminal-accent: #f0c040;
+  --color-terminal-green: #40d080;
+  --color-terminal-red: #e05050;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-terminal-bg);
+  font-family: var(--font-mono);
+  color: var(--color-terminal-text);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
