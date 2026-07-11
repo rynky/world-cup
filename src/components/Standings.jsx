@@ -1,7 +1,7 @@
 export default function Standings({ standings }) {
   if (!standings) {
     return (
-      <div className="text-terminal-red text-xs tracking-widest uppercase">
+      <div className="text-terminal-red text-sm tracking-widest uppercase">
         ERROR
       </div>
     )
@@ -11,10 +11,10 @@ export default function Standings({ standings }) {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-6xl">
       {standings.map((group) => (
         <div key={group.group} className="border border-terminal-border rounded-sm">
-          <div className="px-3 py-1.5 border-b border-terminal-border text-terminal-accent text-xs tracking-[0.2em] font-bold">
+          <div className="px-3 py-1.5 border-b border-terminal-border text-terminal-accent text-sm tracking-[0.2em] font-bold">
             GROUP {group.group}
           </div>
-          <table className="w-full text-xs">
+          <table className="w-full text-sm">
             <thead>
               <tr className="text-terminal-dim border-b border-terminal-border">
                 <th className="px-2 py-1 text-left font-normal w-6">#</th>

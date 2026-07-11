@@ -15,7 +15,7 @@ export default function MatchCard({ match, homeLogo, awayLogo }) {
   return (
     <div className="inline-block min-w-[420px]">
       {/* Phase label */}
-      <div className="text-terminal-dim text-[10px] tracking-[0.25em] uppercase text-center mb-1 select-none">
+      <div className="text-terminal-dim text-[14px] tracking-[0.25em] uppercase text-center mb-1 select-none">
         {phaseLabel[match.phase] || match.phase}
       </div>
 
@@ -30,17 +30,17 @@ export default function MatchCard({ match, homeLogo, awayLogo }) {
                 className="w-8 h-8 object-contain rounded-[2px]"
               />
             )}
-            <span className="text-lg font-bold text-terminal-accent tracking-widest">
+            <span className="text-xl font-bold text-terminal-accent tracking-widest">
               {match.homeCode || match.homeName}
             </span>
           </div>
 
-          <div className="text-terminal-dim text-xs tracking-widest select-none">
+          <div className="text-terminal-dim text-sm tracking-widest select-none">
             {isFinished ? "FT" : isScheduled ? "VS" : "LIVE"}
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-lg font-bold text-terminal-accent tracking-widest">
+            <span className="text-xl font-bold text-terminal-accent tracking-widest">
               {match.awayCode || match.awayName}
             </span>
             {awayLogo && (
@@ -62,7 +62,7 @@ export default function MatchCard({ match, homeLogo, awayLogo }) {
             {isFinished ? match.homeScore : isScheduled ? "\u2014" : match.homeScore ?? "\u2014"}
           </span>
 
-          <span className="text-terminal-dim text-lg select-none">:</span>
+          <span className="text-terminal-dim text-xl select-none">:</span>
 
           <span className="text-3xl font-bold text-terminal-green w-16 text-center">
             {isFinished ? match.awayScore : isScheduled ? "\u2014" : match.awayScore ?? "\u2014"}
@@ -72,7 +72,7 @@ export default function MatchCard({ match, homeLogo, awayLogo }) {
 
       {/* Scorers */}
       {isFinished && (match.homeScorers.length > 0 || match.awayScorers.length > 0) && (
-        <div className="flex justify-between px-1 pt-2 text-[11px]">
+        <div className="flex justify-between px-1 pt-2 text-[14px]">
           <div className="text-left text-terminal-dim leading-relaxed">
             {match.homeScorers.map((s, i) => (
               <div key={i}>
@@ -92,9 +92,9 @@ export default function MatchCard({ match, homeLogo, awayLogo }) {
         </div>
       )}
 
-      {/* Kickoff time for scheduled matches */}
-      {isScheduled && match.time && (
-        <div className="text-center pt-2 text-terminal-dim text-xs tracking-wider">
+      {/* Kickoff time for scheduled and live matches */}
+      {!isFinished && match.time && (
+        <div className="text-center pt-2 text-terminal-dim text-sm tracking-wider">
           {match.time} UTC {match.venueCity && `\u00b7 ${match.venueCity}`}
         </div>
       )}

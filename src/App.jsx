@@ -1,14 +1,12 @@
 import { useState, useEffect, useRef } from "react"
 import { fetchMatches, fetchTeams, fetchStandings, fetchTopScorers } from "./api"
 import MatchCard from "./components/MatchCard"
+import NavBar from "./components/NavBar"
 import Standings from "./components/Standings"
 import TopScorers from "./components/TopScorers"
 
-const TABS = ["matches", "standings", "scorers"]
-
-function getLocalDate(offsetDays = 0) {
+function getToday() {
   const d = new Date()
-  d.setDate(d.getDate() + offsetDays)
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, "0")
   const day = String(d.getDate()).padStart(2, "0")
@@ -21,37 +19,6 @@ function hasLiveMatch(matches) {
   )
 }
 
-function Divider() {
-  return (
-    <div className="flex items-center gap-3 w-full max-w-[500px] py-2 select-none">
-      <div className="flex-1 h-px bg-terminal-border" />
-      <span className="text-terminal-accent text-sm tracking-widest">&#x2756;</span>
-      <div className="flex-1 h-px bg-terminal-border" />
-    </div>
-  )
-}
-
-function DaySection({ label, matches, resolveTeam }) {
-  if (matches.length === 0) return null
-  return (
-    <div className="flex flex-col items-center gap-3 w-full">
-      <div className="text-terminal-accent text-[11px] tracking-[0.3em] font-bold uppercase select-none">
-        {label}
-      </div>
-      <div className="flex flex-col items-center gap-4">
-        {matches.map((m) => (
-          <MatchCard
-            key={m.num}
-            match={m}
-            homeLogo={resolveTeam(m._homeTeamId)?.flag}
-            awayLogo={resolveTeam(m._awayTeamId)?.flag}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export default function App() {
   const [matches, setMatches] = useState(null)
   const [teams, setTeams] = useState(null)
@@ -59,18 +26,15 @@ export default function App() {
   const [topScorers, setTopScorers] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("matches")
+  const [selectedMatch, setSelectedMatch] = useState(null)
   const intervalRef = useRef(null)
 
-  const today = getLocalDate(0)
-  const tomorrow = getLocalDate(1)
+  const today = getToday()
   const todayMatches = matches
     ? matches.filter((m) => m.date === today)
-    : null
-  const tomorrowMatches = matches
-    ? matches.filter((m) => m.date === tomorrow)
-    : null
+    : []
 
-  const isLive = matches ? hasLiveMatch(matches) : false
+  const isLive = matches ? hasLiveMatch(todayMatches) : false
 
   useEffect(() => {
     let cancelled = false
@@ -98,6 +62,9 @@ export default function App() {
           }
         })
         setMatches(enriched)
+        const live = enriched.find((m) => m.status !== "finished" && m.status !== "scheduled")
+        if (live) setSelectedMatch(live.num)
+        else setSelectedMatch(enriched[0]?.num)
       } else {
         setMatches(null)
       }
@@ -132,6 +99,9 @@ export default function App() {
             }
           })
           setMatches(enriched)
+          const live = enriched.find((m) => m.status !== "finished" && m.status !== "scheduled")
+          if (live) setSelectedMatch(live.num)
+          else if (!selectedMatch) setSelectedMatch(enriched[0]?.num)
         } catch {
           // keep existing data on refetch failure
         }
@@ -144,82 +114,67 @@ export default function App() {
         intervalRef.current = null
       }
     }
-  }, [isLive, matches, teams])
+  }, [isLive, matches, teams, selectedMatch])
 
   function resolveTeam(id) {
     return teams?.[id]
   }
 
-  const hasAnyMatches = todayMatches && tomorrowMatches
-    ? todayMatches.length + tomorrowMatches.length > 0
-    : false
-
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen gap-6 px-4">
-      {/* Header */}
-      <div className="text-terminal-dim text-xs tracking-[0.3em] uppercase select-none">
-        FIFA 2026 World Cup
-      </div>
+    <>
+      {/* Navigation bar */}
+      <NavBar activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Tabs */}
-      <div className="flex gap-4 text-xs tracking-[0.15em] uppercase">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`pb-0.5 border-b transition-colors ${
-              activeTab === tab
-                ? "text-terminal-accent border-terminal-accent"
-                : "text-terminal-dim border-transparent hover:text-terminal-text"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      <div className="flex flex-col items-center min-h-screen gap-6 px-4 pt-6">
+        {/* Header */}
+        <div className="text-terminal-dim text-2xl tracking-[0.3em] uppercase select-none pt-4 pb-2">
+          FIFA 2026 World Cup
+        </div>
+
+      {/* Game tabs */}
+      {activeTab === "matches" && todayMatches.length > 0 && (
+        <div className="flex justify-center gap-1 text-sm tracking-[0.15em] px-1 py-1 w-full">
+          {todayMatches.map((m) => (
+            <button
+              key={m.num}
+              onClick={() => setSelectedMatch(m.num)}
+              className={`px-3 py-1 rounded transition-colors ${
+                selectedMatch === m.num
+                  ? "bg-terminal-accent text-terminal-bg"
+                  : "bg-terminal-border text-terminal-dim hover:text-terminal-text"
+              }`}
+            >
+              {m.homeCode} vs {m.awayCode}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Content */}
       {loading ? (
-        <div className="text-terminal-dim text-xs tracking-widest animate-pulse">
+        <div className="text-terminal-dim text-sm tracking-widest animate-pulse">
           LOADING...
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4 w-full">
           {activeTab === "matches" && (
             <>
-              {todayMatches === null ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-terminal-red text-xs tracking-widest uppercase">
-                    ERROR
-                  </span>
-                  <span className="text-terminal-dim text-xs">
-                    Match data unavailable
-                  </span>
-                </div>
-              ) : !hasAnyMatches ? (
-                <div className="text-terminal-dim text-xs tracking-wider">
+              {todayMatches.length === 0 ? (
+                <div className="text-terminal-dim text-sm tracking-wider">
                   No matches today
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-2 w-full">
-                  {todayMatches.length > 0 && (
-                    <DaySection
-                      label="Today"
-                      matches={todayMatches}
-                      resolveTeam={resolveTeam}
+                (() => {
+                  const match = todayMatches.find((m) => m.num === selectedMatch)
+                  if (!match) return null
+                  return (
+                    <MatchCard
+                      match={match}
+                      homeLogo={resolveTeam(match._homeTeamId)?.flag}
+                      awayLogo={resolveTeam(match._awayTeamId)?.flag}
                     />
-                  )}
-                  {todayMatches.length > 0 && tomorrowMatches.length > 0 && (
-                    <Divider />
-                  )}
-                  {tomorrowMatches.length > 0 && (
-                    <DaySection
-                      label="Tomorrow"
-                      matches={tomorrowMatches}
-                      resolveTeam={resolveTeam}
-                    />
-                  )}
-                </div>
+                  )
+                })()
               )}
             </>
           )}
@@ -232,14 +187,14 @@ export default function App() {
 
       {/* Live indicator */}
       {isLive && (
-        <div className="fixed top-4 right-4 flex items-center gap-2 text-terminal-red text-xs tracking-widest uppercase">
+        <div className="fixed top-4 right-4 flex items-center gap-2 text-terminal-red text-sm tracking-widest uppercase">
           <span className="w-2 h-2 rounded-full bg-terminal-red animate-pulse" />
           LIVE
         </div>
       )}
 
       {/* Attribution */}
-      <div className="fixed bottom-3 right-4 text-terminal-dim text-[10px]">
+      <div className="fixed bottom-3 right-4 text-terminal-dim text-[14px]">
         Data from{" "}
         <a
           href="https://sportscore.com/"
@@ -251,5 +206,6 @@ export default function App() {
         </a>
       </div>
     </div>
+    </>
   )
 }

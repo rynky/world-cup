@@ -65,10 +65,10 @@ FIFA 2026 World Cup HUD and statistics viewing tool. Built with React (Vite) and
 - Theme colors are defined in `src/index.css` under `@theme` as `--color-terminal-*`
 - Team flags are remote URLs from worldcup26.ir (flagcdn.com) — no local SVGs used
 - Use monospace font and dark terminal aesthetic throughout
-- Matches grouped by local date into TODAY / TOMORROW sections with golden headers
-- Decorative `❖` divider between day sections
+- Today's matches shown as game tabs (e.g. "NOR vs ENG"), one match displayed at a time
+- NavBar renders edge-to-edge golden bar, placed outside main flex container via React Fragment
 - Data is fetched on mount; if a live match is detected, polls every 60s
-- Partial API failures show a red `ERROR` badge while rendering available data
+- Live match auto-selected on load/refresh
 
 ## File Structure
 
@@ -89,6 +89,7 @@ world-cup
 │   ├── teams.js           (legacy — no longer imported)
 │   └── components/
 │       ├── MatchCard.jsx
+│       ├── NavBar.jsx
 │       ├── Standings.jsx
 │       └── TopScorers.jsx
 ├── .opencode/

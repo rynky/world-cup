@@ -1,7 +1,7 @@
 export default function TopScorers({ scorers }) {
   if (!scorers) {
     return (
-      <div className="text-terminal-red text-xs tracking-widest uppercase">
+      <div className="text-terminal-red text-sm tracking-widest uppercase">
         ERROR
       </div>
     )
@@ -9,10 +9,10 @@ export default function TopScorers({ scorers }) {
 
   return (
     <div className="w-full max-w-2xl border border-terminal-border rounded-sm">
-      <div className="px-4 py-2 border-b border-terminal-border text-terminal-accent text-xs tracking-[0.2em] font-bold">
+      <div className="px-4 py-2 border-b border-terminal-border text-terminal-accent text-sm tracking-[0.2em] font-bold">
         TOP SCORERS
       </div>
-      <table className="w-full text-xs">
+      <table className="w-full text-sm">
         <thead>
           <tr className="text-terminal-dim border-b border-terminal-border">
             <th className="px-3 py-1.5 text-left font-normal w-8">#</th>
