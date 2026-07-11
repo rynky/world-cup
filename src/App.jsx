@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { fetchMatches, fetchTeams, fetchStandings, fetchTopScorers } from "./api"
+import { fetchMatches, fetchStandings, fetchTopScorers, fetchMatchDetail, fetchTodaysMatchIds } from "./api"
 import MatchCard from "./components/MatchCard"
 import NavBar from "./components/NavBar"
 import Standings from "./components/Standings"
@@ -19,9 +19,30 @@ function hasLiveMatch(matches) {
   )
 }
 
+async function enrichLiveDetails(matches) {
+  return Promise.all(
+    matches.map(async (m) => {
+      if (m.status === "finished" || m.status === "scheduled" || !m.slug) return m
+      try {
+        const detail = await fetchMatchDetail(m.slug)
+        if (!detail) return m
+        return {
+          ...m,
+          elapsedTime: detail.liveMinute != null ? String(detail.liveMinute) : null,
+          homeScore: detail.homeScore ?? m.homeScore,
+          awayScore: detail.awayScore ?? m.awayScore,
+          homeScorers: detail.homeScorers.length > 0 ? detail.homeScorers : m.homeScorers,
+          awayScorers: detail.awayScorers.length > 0 ? detail.awayScorers : m.awayScorers,
+        }
+      } catch {
+        return m
+      }
+    })
+  )
+}
+
 export default function App() {
   const [matches, setMatches] = useState(null)
-  const [teams, setTeams] = useState(null)
   const [standings, setStandings] = useState(null)
   const [topScorers, setTopScorers] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -40,38 +61,54 @@ export default function App() {
     let cancelled = false
 
     async function loadAll() {
-      const [t, m, ts] = await Promise.allSettled([
-        fetchTeams(),
+      const [s, m, ts] = await Promise.allSettled([
+        fetchStandings(),
         fetchMatches(),
         fetchTopScorers(),
       ])
       if (cancelled) return
 
-      const teamsData = t.status === "fulfilled" ? t.value : null
-      setTeams(teamsData)
+      const standingsData = s.status === "fulfilled" ? s.value : null
+      setStandings(standingsData?.groups ?? null)
       setTopScorers(ts.status === "fulfilled" ? ts.value : null)
 
-      if (m.status === "fulfilled" && m.value) {
-        const enriched = m.value.map((match) => {
-          const home = teamsData?.[match._homeTeamId]
-          const away = teamsData?.[match._awayTeamId]
-          return {
-            ...match,
-            homeCode: home?.code || match.homeName,
-            awayCode: away?.code || match.awayName,
-          }
-        })
-        setMatches(enriched)
-        const live = enriched.find((m) => m.status !== "finished" && m.status !== "scheduled")
-        if (live) setSelectedMatch(live.num)
-        else setSelectedMatch(enriched[0]?.num)
-      } else {
-        setMatches(null)
+      let matchesData = m.status === "fulfilled" ? m.value : []
+
+      const backup = await fetchTodaysMatchIds()
+      if (cancelled) return
+
+      const ssNames = new Set(matchesData.map((m) => `${m.homeName}|${m.awayName}`))
+      for (const b of backup) {
+        if (!ssNames.has(`${b.homeName}|${b.awayName}`)) {
+          matchesData.push({
+            num: b.id,
+            homeName: b.homeName,
+            awayName: b.awayName,
+            homeScore: null,
+            awayScore: null,
+            status: b.status,
+            homeScorers: [],
+            awayScorers: [],
+            homeLogo: null,
+            awayLogo: null,
+            date: today,
+            time: b.time,
+            slug: b.slug,
+            group: null,
+            phase: b.phase,
+            elapsedTime: null,
+          })
+        }
       }
 
-      const s = await fetchStandings(teamsData)
-      if (cancelled) return
-      setStandings(s)
+      if (matchesData.length > 0) {
+        matchesData = await enrichLiveDetails(matchesData)
+      }
+
+      setMatches(matchesData.length > 0 ? matchesData : null)
+      const live = matchesData.find((m) => m.status !== "finished" && m.status !== "scheduled")
+      if (live) setSelectedMatch(live.num)
+      else setSelectedMatch(matchesData[0]?.num)
       setLoading(false)
     }
 
@@ -80,28 +117,42 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [today])
 
   useEffect(() => {
-    if (!matches) return
-
     if (isLive) {
       intervalRef.current = setInterval(async () => {
         try {
-          const m = await fetchMatches()
-          const enriched = m.map((match) => {
-            const home = teams?.[match._homeTeamId]
-            const away = teams?.[match._awayTeamId]
-            return {
-              ...match,
-              homeCode: home?.code || match.homeName,
-              awayCode: away?.code || match.awayName,
+          let m = await fetchMatches()
+          const backup = await fetchTodaysMatchIds()
+          const ssNames = new Set(m.map((x) => `${x.homeName}|${x.awayName}`))
+          for (const b of backup) {
+            if (!ssNames.has(`${b.homeName}|${b.awayName}`)) {
+              m.push({
+                num: b.id,
+                homeName: b.homeName,
+                awayName: b.awayName,
+                homeScore: null,
+                awayScore: null,
+                status: b.status,
+                homeScorers: [],
+                awayScorers: [],
+                homeLogo: null,
+                awayLogo: null,
+                date: today,
+                time: b.time,
+                slug: b.slug,
+                group: null,
+                phase: b.phase,
+                elapsedTime: null,
+              })
             }
-          })
-          setMatches(enriched)
-          const live = enriched.find((m) => m.status !== "finished" && m.status !== "scheduled")
+          }
+          m = await enrichLiveDetails(m)
+          setMatches(m.length > 0 ? m : null)
+          const live = m.find((x) => x.status !== "finished" && x.status !== "scheduled")
           if (live) setSelectedMatch(live.num)
-          else if (!selectedMatch) setSelectedMatch(enriched[0]?.num)
+          else if (!selectedMatch) setSelectedMatch(m[0]?.num)
         } catch {
           // keep existing data on refetch failure
         }
@@ -114,27 +165,21 @@ export default function App() {
         intervalRef.current = null
       }
     }
-  }, [isLive, matches, teams, selectedMatch])
-
-  function resolveTeam(id) {
-    return teams?.[id]
-  }
+  }, [isLive, today, selectedMatch])
 
   return (
     <>
-      {/* Navigation bar */}
       <NavBar activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="flex flex-col items-center min-h-screen gap-6 px-4 pt-6">
-        {/* Header */}
         <div className="text-terminal-dim text-2xl tracking-[0.3em] uppercase select-none pt-4 pb-2">
           FIFA 2026 World Cup
         </div>
 
-      {/* Game tabs */}
       {activeTab === "matches" && todayMatches.length > 0 && (
         <div className="flex justify-center gap-1 text-sm tracking-[0.15em] px-1 py-1 w-full">
-          {todayMatches.map((m) => (
+          {todayMatches.flatMap((m, i) => [
+            ...(i > 0 ? [<span key={`sep-${m.num}`} className="text-terminal-dim select-none self-center text-xs px-1">&#9670;</span>] : []),
             <button
               key={m.num}
               onClick={() => setSelectedMatch(m.num)}
@@ -144,13 +189,12 @@ export default function App() {
                   : "bg-terminal-border text-terminal-dim hover:text-terminal-text"
               }`}
             >
-              {m.homeCode} vs {m.awayCode}
-            </button>
-          ))}
+              {m.homeName} vs {m.awayName}
+            </button>,
+          ])}
         </div>
       )}
 
-      {/* Content */}
       {loading ? (
         <div className="text-terminal-dim text-sm tracking-widest animate-pulse">
           LOADING...
@@ -168,11 +212,7 @@ export default function App() {
                   const match = todayMatches.find((m) => m.num === selectedMatch)
                   if (!match) return null
                   return (
-                    <MatchCard
-                      match={match}
-                      homeLogo={resolveTeam(match._homeTeamId)?.flag}
-                      awayLogo={resolveTeam(match._awayTeamId)?.flag}
-                    />
+                    <MatchCard match={match} />
                   )
                 })()
               )}
@@ -185,15 +225,13 @@ export default function App() {
         </div>
       )}
 
-      {/* Live indicator */}
       {isLive && (
-        <div className="fixed top-4 right-4 flex items-center gap-2 text-terminal-red text-sm tracking-widest uppercase">
+        <div className="fixed top-20 right-4 flex items-center gap-2 text-terminal-red text-sm tracking-widest uppercase">
           <span className="w-2 h-2 rounded-full bg-terminal-red animate-pulse" />
           LIVE
         </div>
       )}
 
-      {/* Attribution */}
       <div className="fixed bottom-3 right-4 text-terminal-dim text-[14px]">
         Data from{" "}
         <a

@@ -1,104 +1,163 @@
-const GAMES_URL = "https://worldcup26.ir/get/games"
-const TEAMS_URL = "https://worldcup26.ir/get/teams"
-const GROUPS_URL = "https://worldcup26.ir/get/groups"
-const TOP_SCORERS_URL = "https://sportscore.com/api/widget/topscorers/?sport=football&slug=fifa-world-cup&limit=10"
+const SS_BASE = "https://sportscore.com/api/widget"
+const WC_GAMES_URL = "https://worldcup26.ir/get/games"
+const TOP_SCORERS_URL = `${SS_BASE}/topscorers/?sport=football&slug=fifa-world-cup&limit=10`
+const GROUP_LABELS = "ABCDEFGHIJKL".split("")
 
-function parseScorers(raw) {
-  if (!raw || raw === "null") return []
-  try {
-    let inner = raw.replace(/^\{|\}$/g, "")
-    inner = inner.replace(/[\u201c\u201d]/g, '"').replace(/[\u2018\u2019]/g, "'")
-    const parts = inner.split('","')
-    return parts.map((s) => {
-      let trimmed = s.replace(/^"|"$/g, "").replace(/\}$/, "").trim()
-      trimmed = trimmed.replace(/\s*\(OG\)\s*'?$/i, "")
-      trimmed = trimmed.replace(/\s*\(P\)\s*'?$/i, "")
-      const match = trimmed.match(/^(.+?)\s+(\d+)['\u2019]?\s*(?:[+\u002B]\s*(\d+)['\u2019]?)?$/)
-      if (match) {
-        const minute = match[3] ? `${match[2]}+${match[3]}` : match[2]
-        return { name: match[1].trim(), minute }
-      }
-      return { name: trimmed, minute: null }
-    })
-  } catch {
-    return []
-  }
+function mapStatus(status) {
+  if (status === "finished") return "finished"
+  if (status === "upcoming" || status === "cancelled" || status === "Delayed") return "scheduled"
+  return status
 }
 
-export async function fetchMatches() {
-  const res = await fetch(GAMES_URL)
-  if (!res.ok) throw new Error(`Matches fetch failed: ${res.status}`)
-  const json = await res.json()
-
-  return json.games.map((g) => ({
-    num: Number(g.id),
-    homeCode: null,
-    awayCode: null,
-    homeName: g.home_team_name_en,
-    awayName: g.away_team_name_en,
-    homeScore: g.home_score !== "0" || g.finished === "TRUE" ? Number(g.home_score) : null,
-    awayScore: g.away_score !== "0" || g.finished === "TRUE" ? Number(g.away_score) : null,
-    status:
-      g.time_elapsed === "finished" ? "finished" :
-      g.time_elapsed === "notstarted" ? "scheduled" :
-      g.time_elapsed || "scheduled",
-    phase: g.type,
-    group: g.group,
-    homeScorers: parseScorers(g.home_scorers),
-    awayScorers: parseScorers(g.away_scorers),
-    venue: g.stadium_id,
-    venueCity: null,
-    date: g.local_date ? g.local_date.replace(/(\d{2})\/(\d{2})\/(\d{4}).*/, "$3-$1-$2") : null,
-    time: g.local_date ? g.local_date.split(" ")[1] : null,
-    _homeTeamId: g.home_team_id,
-    _awayTeamId: g.away_team_id,
-  }))
+function parseDate(iso) {
+  if (!iso) return null
+  const d = new Date(iso)
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0")
+  const day = String(d.getUTCDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
 }
 
-export async function fetchTeams() {
-  const res = await fetch(TEAMS_URL)
-  if (!res.ok) throw new Error(`Teams fetch failed: ${res.status}`)
-  const json = await res.json()
-
-  const lookup = {}
-  for (const t of json.teams) {
-    lookup[t.id] = {
-      code: t.fifa_code,
-      name: t.name_en,
-      group: t.groups,
-      flag: t.flag,
-    }
-  }
-  return lookup
+function parseTime(iso) {
+  if (!iso) return null
+  const d = new Date(iso)
+  const h = String(d.getUTCHours()).padStart(2, "0")
+  const min = String(d.getUTCMinutes()).padStart(2, "0")
+  return `${h}:${min}`
 }
 
-export async function fetchStandings(teamsById) {
-  const res = await fetch(GROUPS_URL)
+function extractSlug(url) {
+  if (!url) return null
+  return url.replace(/^\/football\/match\//, "").replace(/\/$/, "")
+}
+
+function extractGoalsFromIncidents(incidents, side) {
+  if (!incidents) return []
+  return incidents
+    .filter((i) => (i.type === "Goal" || i.type === "Penalty goal") && i.side === side)
+    .map((i) => ({
+      name: i.player || "Unknown",
+      minute: i.time != null ? String(i.time) : null,
+    }))
+}
+
+export async function fetchStandings() {
+  const res = await fetch(`${SS_BASE}/standings/?sport=football&slug=fifa-world-cup`)
   if (!res.ok) throw new Error(`Standings fetch failed: ${res.status}`)
   const json = await res.json()
 
-  return json.groups.map((g) => ({
-    group: g.name,
-    rows: g.teams
-      .map((t) => {
-        const team = teamsById?.[t.team_id]
-        return {
-          pos: 0,
-          team: team?.name || t.team_id,
-          logo: team?.flag || null,
-          p: Number(t.mp),
-          w: Number(t.w),
-          d: Number(t.d),
-          l: Number(t.l),
-          gf: Number(t.gf),
-          ga: Number(t.ga),
-          gd: Number(t.gd),
-          pts: Number(t.pts),
+  const teamLookup = {}
+
+  const groups = json.tables.map((t, i) => {
+    const groupLabel = GROUP_LABELS[i] || t.group
+    return {
+      group: groupLabel,
+      rows: t.rows.map((r) => {
+        teamLookup[r.team] = {
+          logo: r.team_logo,
+          slug: r.team_slug,
+          group: groupLabel,
         }
+        return {
+          pos: r.pos,
+          team: r.team,
+          logo: r.team_logo,
+          p: r.p,
+          w: r.w,
+          d: r.d,
+          l: r.l,
+          gf: r.gf,
+          ga: r.ga,
+          gd: r.gd,
+          pts: r.pts,
+        }
+      }),
+    }
+  })
+
+  return { groups, teamLookup }
+}
+
+export async function fetchMatches() {
+  const res = await fetch(`${SS_BASE}/matches/?sport=football&limit=100`)
+  if (!res.ok) throw new Error(`Matches fetch failed: ${res.status}`)
+  const json = await res.json()
+
+  return json.matches
+    .filter((m) => m.competition === "FIFA World Cup")
+    .map((m, i) => ({
+      num: i,
+      homeName: m.home,
+      awayName: m.away,
+      homeScore: m.home_score,
+      awayScore: m.away_score,
+      status: mapStatus(m.status),
+      homeScorers: [],
+      awayScorers: [],
+      homeLogo: m.home_logo,
+      awayLogo: m.away_logo,
+      date: parseDate(m.time),
+      time: parseTime(m.time),
+      slug: extractSlug(m.url),
+      group: null,
+      phase: "group",
+      elapsedTime: null,
+    }))
+}
+
+export async function fetchMatchDetail(slug) {
+  const res = await fetch(`${SS_BASE}/match/?sport=football&slug=${slug}`)
+  if (!res.ok) return null
+  const json = await res.json()
+  const m = json.match
+  if (!m) return null
+
+  return {
+    liveMinute: m.live_minute,
+    homeScorers: extractGoalsFromIncidents(m.incidents, "home"),
+    awayScorers: extractGoalsFromIncidents(m.incidents, "away"),
+    homeScore: m.home_score,
+    awayScore: m.away_score,
+  }
+}
+
+export async function fetchTodaysMatchIds() {
+  try {
+    const res = await fetch(WC_GAMES_URL)
+    if (!res.ok) return []
+    const json = await res.json()
+
+    const today = new Date()
+    const y = today.getFullYear()
+    const m = String(today.getMonth() + 1).padStart(2, "0")
+    const d = String(today.getDate()).padStart(2, "0")
+    const todayStr = `${y}-${m}-${d}`
+
+    return json.games
+      .filter((g) => {
+        if (!g.local_date) return false
+        const date = g.local_date.replace(/(\d{2})\/(\d{2})\/(\d{4}).*/, "$3-$1-$2")
+        return date === todayStr
       })
-      .sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf)
-      .map((r, i) => ({ ...r, pos: i + 1 })),
-  }))
+      .map((g) => ({
+        id: Number(g.id),
+        homeName: g.home_team_name_en,
+        awayName: g.away_team_name_en,
+        time: g.local_date?.split(" ")[1],
+        status: g.time_elapsed === "live"
+          ? "live"
+          : g.time_elapsed === "finished" || g.time_elapsed === "Finished"
+            ? "finished"
+            : "scheduled",
+        slug: `${g.home_team_name_en}-vs-${g.away_team_name_en}`
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, ""),
+        phase: g.type || "group",
+      }))
+  } catch {
+    return []
+  }
 }
 
 export async function fetchTopScorers() {
