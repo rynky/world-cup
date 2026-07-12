@@ -158,12 +158,17 @@ export async function fetchMatchDetail(slug) {
     (i) => (i.type === "Goal" || i.type === "Penalty goal") && i.side === "away"
   ).length
 
+  const extraTime = (m.incidents || []).some(
+    (i) => i.time > 90 && (i.type === "Goal" || i.type === "Penalty goal")
+  )
+
   return {
     liveMinute: normalizeMinute(m.live_minute, m.status_text),
     homeScorers: extractGoalsFromIncidents(m.incidents, "home", htScore, m.status_text),
     awayScorers: extractGoalsFromIncidents(m.incidents, "away", htScore, m.status_text),
     homeScore: homeGoals,
     awayScore: awayGoals,
+    extraTime,
   }
 }
 

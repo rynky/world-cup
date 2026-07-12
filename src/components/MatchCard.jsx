@@ -37,7 +37,7 @@ export default function MatchCard({ match }) {
 
           <div className="text-sm tracking-widest select-none">
             {isFinished ? (
-              <span className="text-terminal-dim">FT</span>
+              <span className="text-terminal-dim">{match.extraTime ? "AET" : "FT"}</span>
             ) : isScheduled ? (
               <span className="text-terminal-dim">VS</span>
             ) : elapsed ? (

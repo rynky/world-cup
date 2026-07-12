@@ -33,6 +33,7 @@ async function enrichLiveDetails(matches) {
           awayScore: detail.awayScore ?? m.awayScore,
           homeScorers: detail.homeScorers.length > 0 ? detail.homeScorers : m.homeScorers,
           awayScorers: detail.awayScorers.length > 0 ? detail.awayScorers : m.awayScorers,
+          extraTime: detail.extraTime || m.extraTime,
         }
       } catch {
         return m
