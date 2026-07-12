@@ -14,7 +14,7 @@ export default function MatchCard({ match }) {
   const elapsed = match.elapsedTime
 
   return (
-    <div className="inline-block min-w-[420px]">
+    <div className="inline-block min-w-[580px]">
       <div className="text-terminal-dim text-[14px] tracking-[0.25em] uppercase text-center mb-1 select-none">
         {phaseLabel[match.phase] || match.phase}
       </div>
@@ -41,7 +41,7 @@ export default function MatchCard({ match }) {
             ) : isScheduled ? (
               <span className="text-terminal-dim">VS</span>
             ) : elapsed ? (
-              <span className="text-terminal-accent">(LIVE) {elapsed === "90+0" ? "90" : /^(HT|ET)$/.test(elapsed) ? elapsed : `${elapsed}'`}</span>
+              <span className="text-terminal-accent">(LIVE) {/^(HT|ET)$/.test(elapsed) ? elapsed : `${elapsed}'`}</span>
             ) : (
               <span className="text-terminal-dim">LIVE</span>
             )}
@@ -65,7 +65,7 @@ export default function MatchCard({ match }) {
         <div className="border-t border-terminal-border" />
 
         {/* Score row */}
-        <div className="flex items-center justify-between px-6 py-3">
+        <div className="flex items-center justify-between px-12 py-3">
           <span className="text-3xl font-bold text-terminal-green w-16 text-center">
             {isFinished ? match.homeScore : isScheduled ? "\u2014" : match.homeScore ?? 0}
           </span>

@@ -12,17 +12,17 @@ function mapStatus(status) {
 function parseDate(iso) {
   if (!iso) return null
   const d = new Date(iso)
-  const y = d.getUTCFullYear()
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0")
-  const day = String(d.getUTCDate()).padStart(2, "0")
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
   return `${y}-${m}-${day}`
 }
 
 function parseTime(iso) {
   if (!iso) return null
   const d = new Date(iso)
-  const h = String(d.getUTCHours()).padStart(2, "0")
-  const min = String(d.getUTCMinutes()).padStart(2, "0")
+  const h = String(d.getHours()).padStart(2, "0")
+  const min = String(d.getMinutes()).padStart(2, "0")
   return `${h}:${min}`
 }
 
@@ -132,7 +132,7 @@ function normalizeMinute(liveMinute, statusText) {
   }
   if (s.includes("+")) {
     const after = s.split("+")[1]
-    if (!after) return `${s}0`
+    if (!after || after === "0") return s.split("+")[0]
     return liveMinute
   }
   const n = parseInt(liveMinute, 10)
@@ -175,7 +175,7 @@ export async function fetchMatchDetail(slug) {
 export async function fetchTodaysMatchIds() {
   try {
     const res = await fetch(WC_GAMES_URL)
-    if (!res.ok) return []
+    if (!res.ok) return { matches: [], phaseLookup: {} }
     const json = await res.json()
 
     const today = new Date()
@@ -184,7 +184,14 @@ export async function fetchTodaysMatchIds() {
     const d = String(today.getDate()).padStart(2, "0")
     const todayStr = `${y}-${m}-${d}`
 
-    return json.games
+    const phaseLookup = {}
+    for (const g of json.games) {
+      if (g.home_team_name_en && g.away_team_name_en) {
+        phaseLookup[`${g.home_team_name_en}|${g.away_team_name_en}`] = g.type || "group"
+      }
+    }
+
+    const matches = json.games
       .filter((g) => {
         if (!g.local_date) return false
         const date = g.local_date.replace(/(\d{2})\/(\d{2})\/(\d{4}).*/, "$3-$1-$2")
@@ -206,8 +213,10 @@ export async function fetchTodaysMatchIds() {
           .replace(/^-|-$/g, ""),
         phase: g.type || "group",
       }))
+
+    return { matches, phaseLookup }
   } catch {
-    return []
+    return { matches: [], phaseLookup: {} }
   }
 }
 

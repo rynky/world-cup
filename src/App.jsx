@@ -19,6 +19,15 @@ function hasLiveMatch(matches) {
   )
 }
 
+function fillLogos(matches, lookup) {
+  if (!lookup || Object.keys(lookup).length === 0) return matches
+  return matches.map((m) => ({
+    ...m,
+    homeLogo: m.homeLogo || lookup[m.homeName]?.logo || null,
+    awayLogo: m.awayLogo || lookup[m.awayName]?.logo || null,
+  }))
+}
+
 async function enrichLiveDetails(matches) {
   return Promise.all(
     matches.map(async (m) => {
@@ -45,6 +54,7 @@ async function enrichLiveDetails(matches) {
 export default function App() {
   const [matches, setMatches] = useState(null)
   const [standings, setStandings] = useState(null)
+  const [teamLookup, setTeamLookup] = useState({})
   const [topScorers, setTopScorers] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("matches")
@@ -71,11 +81,12 @@ export default function App() {
 
       const standingsData = s.status === "fulfilled" ? s.value : null
       setStandings(standingsData?.groups ?? null)
+      setTeamLookup(standingsData?.teamLookup ?? {})
       setTopScorers(ts.status === "fulfilled" ? ts.value : null)
 
       let matchesData = m.status === "fulfilled" ? m.value : []
 
-      const backup = await fetchTodaysMatchIds()
+      const { matches: backup, phaseLookup } = await fetchTodaysMatchIds()
       if (cancelled) return
 
       const ssNames = new Set(matchesData.map((m) => `${m.homeName}|${m.awayName}`))
@@ -102,9 +113,16 @@ export default function App() {
         }
       }
 
+      matchesData = matchesData.map((m) => ({
+        ...m,
+        phase: phaseLookup[`${m.homeName}|${m.awayName}`] || m.phase,
+      }))
+
       if (matchesData.length > 0) {
         matchesData = await enrichLiveDetails(matchesData)
       }
+
+      matchesData = fillLogos(matchesData, standingsData?.teamLookup)
 
       setMatches(matchesData.length > 0 ? matchesData : null)
       const live = matchesData.find((m) => m.status !== "finished" && m.status !== "scheduled")
@@ -125,7 +143,7 @@ export default function App() {
       intervalRef.current = setInterval(async () => {
         try {
           let m = await fetchMatches()
-          const backup = await fetchTodaysMatchIds()
+          const { matches: backup, phaseLookup } = await fetchTodaysMatchIds()
           const ssNames = new Set(m.map((x) => `${x.homeName}|${x.awayName}`))
           for (const b of backup) {
             if (!ssNames.has(`${b.homeName}|${b.awayName}`)) {
@@ -149,7 +167,12 @@ export default function App() {
               })
             }
           }
+          m = m.map((x) => ({
+            ...x,
+            phase: phaseLookup[`${x.homeName}|${x.awayName}`] || x.phase,
+          }))
           m = await enrichLiveDetails(m)
+          m = fillLogos(m, teamLookup)
           setMatches(m.length > 0 ? m : null)
           const live = m.find((x) => x.status !== "finished" && x.status !== "scheduled")
           if (live) setSelectedMatch(live.num)
@@ -166,7 +189,7 @@ export default function App() {
         intervalRef.current = null
       }
     }
-  }, [isLive, today, selectedMatch])
+  }, [isLive, today, selectedMatch, teamLookup])
 
   return (
     <>
