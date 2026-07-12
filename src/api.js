@@ -31,14 +31,28 @@ function extractSlug(url) {
   return url.replace(/^\/football\/match\//, "").replace(/\/$/, "")
 }
 
-function extractGoalsFromIncidents(incidents, side) {
+function hadExtraTime(incidents) {
+  return incidents && incidents.some((i) => i.time > 105)
+}
+
+function extractGoalsFromIncidents(incidents, side, htScore, matchStatusText) {
   if (!incidents) return []
+  const inExtraTime = isExtraTime(matchStatusText) || hadExtraTime(incidents)
   return incidents
     .filter((i) => (i.type === "Goal" || i.type === "Penalty goal") && i.side === side)
-    .map((i) => ({
-      name: i.player || "Unknown",
-      minute: i.time != null ? String(i.time) : null,
-    }))
+    .map((i) => {
+      let status
+      if (inExtraTime && i.time > 90) {
+        status = "extra time"
+      } else {
+        const is1stHalf = i.home_score + i.away_score <= htScore
+        status = is1stHalf ? "1st half" : "2nd half"
+      }
+      return {
+        name: i.player || "Unknown",
+        minute: i.time != null ? normalizeMinute(i.time, status) : null,
+      }
+    })
 }
 
 export async function fetchStandings() {
@@ -105,6 +119,29 @@ export async function fetchMatches() {
     }))
 }
 
+function isExtraTime(statusText) {
+  return /extra\s*time/i.test(statusText || "")
+}
+
+function normalizeMinute(liveMinute, statusText) {
+  const s = String(liveMinute)
+  if (isExtraTime(statusText)) {
+    const n = parseInt(liveMinute, 10)
+    if (isNaN(n)) return liveMinute
+    return String(n)
+  }
+  if (s.includes("+")) {
+    const after = s.split("+")[1]
+    if (!after) return `${s}0`
+    return liveMinute
+  }
+  const n = parseInt(liveMinute, 10)
+  if (isNaN(n)) return liveMinute
+  if (statusText === "1st half" && n > 45) return `45+${n - 45}`
+  if (statusText === "2nd half" && n > 90) return `90+${n - 90}`
+  return String(n)
+}
+
 export async function fetchMatchDetail(slug) {
   const res = await fetch(`${SS_BASE}/match/?sport=football&slug=${slug}`)
   if (!res.ok) return null
@@ -112,12 +149,21 @@ export async function fetchMatchDetail(slug) {
   const m = json.match
   if (!m) return null
 
+  const htScore = (m.home_ht_score || 0) + (m.away_ht_score || 0)
+
+  const homeGoals = (m.incidents || []).filter(
+    (i) => (i.type === "Goal" || i.type === "Penalty goal") && i.side === "home"
+  ).length
+  const awayGoals = (m.incidents || []).filter(
+    (i) => (i.type === "Goal" || i.type === "Penalty goal") && i.side === "away"
+  ).length
+
   return {
-    liveMinute: m.live_minute,
-    homeScorers: extractGoalsFromIncidents(m.incidents, "home"),
-    awayScorers: extractGoalsFromIncidents(m.incidents, "away"),
-    homeScore: m.home_score,
-    awayScore: m.away_score,
+    liveMinute: normalizeMinute(m.live_minute, m.status_text),
+    homeScorers: extractGoalsFromIncidents(m.incidents, "home", htScore, m.status_text),
+    awayScorers: extractGoalsFromIncidents(m.incidents, "away", htScore, m.status_text),
+    homeScore: homeGoals,
+    awayScore: awayGoals,
   }
 }
 

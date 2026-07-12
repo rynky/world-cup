@@ -22,7 +22,7 @@ function hasLiveMatch(matches) {
 async function enrichLiveDetails(matches) {
   return Promise.all(
     matches.map(async (m) => {
-      if (m.status === "finished" || m.status === "scheduled" || !m.slug) return m
+      if (m.status === "scheduled" || !m.slug) return m
       try {
         const detail = await fetchMatchDetail(m.slug)
         if (!detail) return m
@@ -156,7 +156,7 @@ export default function App() {
         } catch {
           // keep existing data on refetch failure
         }
-      }, 60000)
+      }, 30000)
     }
 
     return () => {

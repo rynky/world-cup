@@ -36,19 +36,7 @@ FIFA 2026 World Cup HUD and statistics viewing tool. Built with React (Vite) and
 
 ## API Data Sources
 
-### worldcup26.ir (matches, teams, standings)
-
-- **Base URL:** `https://worldcup26.ir/`
-- **Auth:** None required
-- **CORS:** Enabled (`Access-Control-Allow-Origin: *`)
-- **Endpoints:**
-  - `/get/games` — All 104 matches with scores, scorers, status, phases
-  - `/get/teams` — All 48 teams with FIFA codes, names, group assignments, flag URLs
-  - `/get/groups` — All 12 group standings tables
-- **Scorer data:** Per-match player names + minutes included directly
-- **Note:** Community-maintained open-source API. No registration required.
-
-### SportScore (top scorers)
+### SportScore (primary — matches, standings, top scorers, live detail)
 
 - **Base URL:** `https://sportscore.com/api/widget/`
 - **Auth:** None required
@@ -56,19 +44,32 @@ FIFA 2026 World Cup HUD and statistics viewing tool. Built with React (Vite) and
 - **Rate limit:** ~10,000 requests/24h/IP
 - **Attribution:** Required — "Powered by SportScore" link in bottom-right corner
 - **Endpoints:**
+  - `/api/widget/matches/?sport=football&limit=100` — Recent matches (client-side filtered to FIFA World Cup)
+  - `/api/widget/match/?sport=football&slug={slug}` — Match detail with live minute, incidents, stats
+  - `/api/widget/standings/?sport=football&slug=fifa-world-cup` — Group standings tables
   - `/api/widget/topscorers/?sport=football&slug=fifa-world-cup&limit=10` — Tournament top scorers
+
+### worldcup26.ir (backup — today's match schedule)
+
+- **Base URL:** `https://worldcup26.ir/`
+- **Auth:** None required
+- **CORS:** Enabled (`Access-Control-Allow-Origin: *`)
+- **Endpoints:**
+  - `/get/games` — All 104 matches; filtered to today's date as backup when SportScore list misses WC matches
 
 ## Project Conventions
 
 - All components live in `src/components/`
 - API layer lives in `src/api.js`
 - Theme colors are defined in `src/index.css` under `@theme` as `--color-terminal-*`
-- Team flags are remote URLs from worldcup26.ir (flagcdn.com) — no local SVGs used
+- Team logos are remote URLs from SportScore (`img.thesports.com`) — no local SVGs used
+- Full team names used throughout (SportScore provides no FIFA codes)
 - Use monospace font and dark terminal aesthetic throughout
-- Today's matches shown as game tabs (e.g. "NOR vs ENG"), one match displayed at a time
+- Today's matches shown as game tabs with diamond separators, one match displayed at a time
 - NavBar renders edge-to-edge golden bar, placed outside main flex container via React Fragment
-- Data is fetched on mount; if a live match is detected, polls every 60s
+- Data is fetched on mount; if a live match is detected, polls every 30s
 - Live match auto-selected on load/refresh
+- Stoppage time normalized: running-clock minutes converted to `X+Y` format (e.g. `45+2'`)
 
 ## File Structure
 
@@ -76,6 +77,7 @@ FIFA 2026 World Cup HUD and statistics viewing tool. Built with React (Vite) and
 world-cup
 ├── AGENTS.md
 ├── index.html
+├── index-test.html          (test simulation entry point)
 ├── package.json
 ├── vite.config.js
 ├── public/
@@ -86,7 +88,9 @@ world-cup
 │   ├── index.css
 │   ├── App.jsx
 │   ├── api.js
-│   ├── teams.js           (legacy — no longer imported)
+│   ├── mockData.js          (mock match data for test simulation)
+│   ├── test-sim.jsx         (standalone test simulation entry)
+│   ├── teams.js             (legacy — no longer imported)
 │   └── components/
 │       ├── MatchCard.jsx
 │       ├── NavBar.jsx
@@ -107,6 +111,8 @@ The UI follows a TUI (Terminal User Interface) inspired aesthetic:
 ## Observations
 
 - Obsidian vault for project notes: `C:\Users\raiya\Obsidian\world-cup`
-- `src/teams.js` is legacy dead code — teams are now fetched from worldcup26.ir
+- `src/teams.js` is legacy dead code — teams are now fetched from SportScore
 - The wheniskickoff.com API is no longer used (had CORS issues and stale data)
-- Scorer strings from worldcup26.ir require special parsing (curly quotes, injury time, penalty/OG notations)
+- SportScore's `/matches/` endpoint doesn't always include FIFA World Cup matches — worldcup26.ir backup ensures today's WC matches always appear
+- SportScore uses "Group 1"–"Group 12" instead of "A"–"L"; mapped via `GROUP_LABELS`
+- SportScore provides no FIFA codes — full team names used throughout

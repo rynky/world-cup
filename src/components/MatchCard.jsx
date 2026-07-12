@@ -41,7 +41,7 @@ export default function MatchCard({ match }) {
             ) : isScheduled ? (
               <span className="text-terminal-dim">VS</span>
             ) : elapsed ? (
-              <span className="text-terminal-accent">(LIVE) {elapsed}&apos;</span>
+              <span className="text-terminal-accent">(LIVE) {elapsed === "90+0" ? "90" : /^(HT|ET)$/.test(elapsed) ? elapsed : `${elapsed}'`}</span>
             ) : (
               <span className="text-terminal-dim">LIVE</span>
             )}
@@ -89,11 +89,11 @@ export default function MatchCard({ match }) {
               </div>
             ))}
           </div>
-          <div className="text-right text-terminal-dim leading-relaxed">
+          <div className="text-left text-terminal-dim leading-relaxed">
             {match.awayScorers.map((s, i) => (
               <div key={i}>
-                {s.minute != null && <span className="text-terminal-accent">{s.minute}&apos; </span>}
                 <span className="text-terminal-text">{s.name}</span>
+                {s.minute != null && <span className="text-terminal-accent"> {s.minute}&apos;</span>}
               </div>
             ))}
           </div>
